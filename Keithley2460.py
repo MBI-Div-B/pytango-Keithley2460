@@ -69,11 +69,12 @@ class Keithley2460(Device):
         self.set_state(DevState.MOVING)
     
     def source_setup(self):
-        self.inst.write('ROUT:TERM FRON')  # use front terminal out
-        self.inst.write('SENS:FUNC "CURR"')
-        self.inst.write('SENS:CURR:RANG:AUTO ON')
-        self.inst.write('SOUR:FUNC CURR')
-        self.inst.write('SOUR:CURR:VLIM 10')
+        self.inst.write(':ROUT:TERM FRON')  # use front terminal out
+        self.inst.write(':SENS:FUNC "CURR"')
+        self.inst.write(':SENSE:CURR:NPLC 1')
+        self.inst.write(':SENS:CURR:RANG:AUTO ON')
+        self.inst.write(':SOUR:FUNC CURR')
+        self.inst.write(':SOUR:CURR:VLIM 10')
             
     @command
     def reset_device(self):
