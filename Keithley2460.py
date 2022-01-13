@@ -33,6 +33,14 @@ class Keithley2460(Device):
             format='%.3f',
             )
 
+    voltage = attribute(
+            name='voltage',
+            access=READ,
+            unit='V',
+            dtype=tango.DevFloat,
+            format='%.3f',
+            )
+
     curr_hist = attribute(
             name='curr_hist',
             access=READ,
@@ -82,7 +90,7 @@ class Keithley2460(Device):
         self.write_output(True)
     
     def read_current(self):
-        ans = self.inst.query(':READ?')
+        ans = self.inst.query(':SOUR:CURR?')
         print('current read', ans, file=self.log_debug)
         return float(ans)
     
@@ -110,11 +118,12 @@ class Keithley2460(Device):
     
     def source_setup(self):
         self.inst.write('ROUT:TERM FRON')  # use front terminal out
-        self.inst.write('SENS:FUNC "CURR"')
+        self.inst.write('SENS:FUNC "VOLT"')
         self.inst.write('SENS:CURR:NPLC 1')
         self.inst.write('SENS:CURR:RANG:AUTO ON')
         self.inst.write('SOUR:FUNC CURR')
-        self.inst.write('SOUR:CURR:VLIM 21')
+        self.inst.write('SOUR:CURR:READ:BACK 1')
+        self.inst.write('SOUR:CURR:VLIM 100')
             
     @command
     def reset_device(self):
@@ -122,9 +131,9 @@ class Keithley2460(Device):
         self.source_setup()
         self.write_output(True)
         
-    # def read_voltage(self):
-    #     ans = self.inst.query(':MEAS:VOLT?')
-    #     return float(ans)
+    def read_voltage(self):
+        ans = self.inst.query(':READ?')
+        return float(ans)
         
     def read_output(self):
         ans = self.inst.query('OUTP?').strip()
