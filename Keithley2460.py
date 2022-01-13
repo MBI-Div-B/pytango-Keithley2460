@@ -99,7 +99,7 @@ class Keithley2460(Device):
     def write_current(self, value):
         if float(value) == 0:
             value = 1e-7
-        self.inst.write(f'SOUR:CURR {value:.4f}')
+        self.inst.write(f'SOUR:CURR {value:.8f}')
         self._setpoint = value
         self._history.append(value)
         self.set_state(DevState.MOVING)
@@ -131,7 +131,7 @@ class Keithley2460(Device):
         return True if ans == '1' else False
     
     def write_output(self, value):
-        val = {True: 'ON', False: 'OFF'}[value]
+        val = 'ON' if value else 'OFF'
         self.inst.write('OUTP ' + val)
            
 
