@@ -11,7 +11,7 @@ current setpoints.
 """
 
 
-import visa
+import pyvisa as visa
 
 import tango
 from tango import DevState
@@ -63,6 +63,7 @@ class Keithley2460(Device):
         self.rm = visa.ResourceManager('@py')
         self.inst = self.rm.open_resource(f'TCPIP::{self.host}::INSTR')
         try:
+            self.inst.write('*RST')
             ans = self.inst.query('*IDN?')
             print(ans)
             if 'MODEL 2460' in ans:
@@ -70,6 +71,7 @@ class Keithley2460(Device):
                 self.set_state(DevState.ON)
             else:
                 self.set_state(DevState.FAULT)
+                sys.exit(255)
         except Exception as e:
             print(e, file=self.error_stream)
             self.inst.close()
