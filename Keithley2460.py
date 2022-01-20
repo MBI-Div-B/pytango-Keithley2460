@@ -31,7 +31,7 @@ class Keithley2460(Device):
             access=READ_WRITE,
             unit='A',
             dtype=tango.DevFloat,
-            format='%9.3f',
+            format='%10.4f',
             )
 
     voltage = attribute(
@@ -39,7 +39,7 @@ class Keithley2460(Device):
             access=READ,
             unit='V',
             dtype=tango.DevFloat,
-            format='%9.4f',
+            format='%10.4f',
             )
 
     curr_hist = attribute(
@@ -65,9 +65,9 @@ class Keithley2460(Device):
         Device.init_device(self)
         self.rm = visa.ResourceManager('@py')
         self.inst = self.rm.open_resource(f'TCPIP::{self.host}::INSTR')
+        self.inst.clear()
         try:
-            self.inst.clear()
-            self.inst.write('*RST')
+            # self.inst.write('*RST')  # commented to maintain output state
             self.inst.write('*CLS')
             ans = self.inst.query('*IDN?')
             print(ans)
@@ -100,9 +100,9 @@ class Keithley2460(Device):
             s = int(status)
             self._status = [s >> i & 1 for i in range(8)]
             print(f'status: {self._status}', file=self.log_debug)
-        except Exception:
+        except Exception as e:
             # likely a timeout ocurred - flush buffer
-            print(f'unexpected answer: {msg} -> {ans}. Clearing buffer',
+            print(f'unexpected {e}: {msg} -> {ans}. Clearing buffer.',
                   file=self.log_warn)
             self.inst.clear()
         return
