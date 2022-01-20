@@ -31,7 +31,7 @@ class Keithley2460(Device):
             access=READ_WRITE,
             unit='A',
             dtype=tango.DevFloat,
-            format='%.3f',
+            format='%9.3f',
             )
 
     voltage = attribute(
@@ -39,7 +39,7 @@ class Keithley2460(Device):
             access=READ,
             unit='V',
             dtype=tango.DevFloat,
-            format='%.3f',
+            format='%9.4f',
             )
 
     curr_hist = attribute(
@@ -55,12 +55,6 @@ class Keithley2460(Device):
             dtype=tango.DevBoolean,
             )
 
-    # setpoint_reached = attribute(
-    #         name='setpoint_reached',
-    #         access=READ,
-    #         dtype=tango.DevBoolean,
-    #         )
-
     host = device_property(
             dtype=str,
             mandatory=True,
@@ -72,7 +66,9 @@ class Keithley2460(Device):
         self.rm = visa.ResourceManager('@py')
         self.inst = self.rm.open_resource(f'TCPIP::{self.host}::INSTR')
         try:
+            self.inst.clear()
             self.inst.write('*RST')
+            self.inst.write('*CLS')
             ans = self.inst.query('*IDN?')
             print(ans)
             if 'MODEL 2460' in ans:
@@ -86,33 +82,52 @@ class Keithley2460(Device):
             self.inst.close()
             self.set_state(DevState.FAULT)
             sys.exit(255)
+        self._current = 0
+        self._voltage = 0
+        self._output = True
         self._setpoint = self.read_current()
         self._history = [self._setpoint]
         self.write_output(True)
 
+    def always_executed_hook(self):
+        msg = ':READ? "defbuffer1", READ, SOURCE, SOURSTATUS'
+        ans = self.inst.query(msg)
+        print(f'always_executed_hook -> {ans}', file=self.log_debug)
+        try:
+            voltage, current, status = ans.split(',')
+            self._voltage = float(voltage)
+            self._current = float(current)
+            s = int(status)
+            self._status = [s >> i & 1 for i in range(8)]
+            print(f'status: {self._status}', file=self.log_debug)
+        except Exception:
+            # likely a timeout ocurred - flush buffer
+            print(f'unexpected answer: {msg} -> {ans}. Clearing buffer',
+                  file=self.log_warn)
+            self.inst.clear()
+        return
+
     def read_current(self):
-        ans = float(self.inst.query(':SOUR:CURR?'))
-        self.debug_stream('current read: {:f}'.format(ans))
-        # time.sleep(0.002)
-        return ans
+        return self._current
+
+    def read_voltage(self):
+        return self._voltage
+
+    def read_output(self):
+        return self._status[-1]
 
     def read_curr_hist(self):
         return self._history
-
-    # def read_setpoint_reached(self):
-    #     in_pos = np.allclose(self.read_current(), self._setpoint,
-    #                          rtol=1e-2, atol=1e-2)
-    #     if in_pos:
-    #         self.set_state(DevState.ON)
-    #     return in_pos
 
     def write_current(self, value):
         if float(value) == 0:
             value = 1e-7
         self.inst.write(f'SOUR:CURR {value:.8f}')
-        self._setpoint = value
         self._history.append(value)
-        # self.set_state(DevState.MOVING)
+
+    def write_output(self, value):
+        val = 'ON' if value else 'OFF'
+        self.inst.write(f'OUTP {val}')
 
     @command
     def clear_history(self):
@@ -132,19 +147,6 @@ class Keithley2460(Device):
         self.inst.write('*RST')
         self.source_setup()
         self.write_output(True)
-
-    def read_voltage(self):
-        ans = self.inst.query(':READ?')
-        # time.sleep(0.002)
-        return float(ans)
-
-    def read_output(self):
-        ans = self.inst.query('OUTP?').strip()
-        return True if ans == '1' else False
-
-    def write_output(self, value):
-        val = 'ON' if value else 'OFF'
-        self.inst.write('OUTP ' + val)
 
 
 if __name__ == "__main__":
