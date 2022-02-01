@@ -62,9 +62,9 @@ class Keithley2460(Device):
     def init_device(self):
         Device.init_device(self)
         self.rm = visa.ResourceManager("@py")
-        self.inst = self.rm.open_resource(f"TCPIP::{self.host}::INSTR")
-        self.inst.clear()
         try:
+            self.inst = self.rm.open_resource(f"TCPIP::{self.host}::INSTR")
+            self.inst.clear()
             # self.inst.write('*RST')  # commented to maintain output state
             self.inst.write("*CLS")
             ans = self.inst.query("*IDN?")
