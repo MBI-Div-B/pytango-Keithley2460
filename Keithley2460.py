@@ -62,6 +62,13 @@ class Keithley2460(Device):
     def init_device(self):
         Device.init_device(self)
         self.rm = visa.ResourceManager("@py")
+        self._current = 0
+        self._voltage = 0
+        self._output = True
+        self._history = []
+        self.open_device()
+
+    def open_device(self):
         try:
             self.inst = self.rm.open_resource(f"TCPIP::{self.host}::INSTR")
             self.inst.clear()
@@ -72,39 +79,34 @@ class Keithley2460(Device):
             if "MODEL 2460" in ans:
                 self.source_setup()
                 self.set_state(DevState.ON)
-                self._current = 0
-                self._voltage = 0
-                self._output = True
-                self._setpoint = self.read_current()
-                self._history = [self._setpoint]
+                self._history = [self.read_current()]
                 self.write_output(True)
             else:
                 print(f"Wrong device at address:\n{ans}", file=self.log_error)
                 self.set_state(DevState.FAULT)
-                # sys.exit(255)
+                self.inst.close()
         except Exception as e:
             print(e, file=self.log_error)
             self.set_state(DevState.FAULT)
-            # self.inst.close()
-            # sys.exit(255)
 
     def always_executed_hook(self):
-        msg = ':READ? "defbuffer1", READ, SOURCE, SOURSTATUS'
-        ans = self.inst.query(msg)
-        print(f"always_executed_hook -> {ans}", file=self.log_debug)
-        try:
-            voltage, current, status = ans.split(",")
-            self._voltage = float(voltage)
-            self._current = float(current)
-            s = int(status)
-            self._status = [s >> i & 1 for i in range(8)]
-        except Exception as e:
-            # likely a timeout occurred - flush buffer
-            print(
-                f"unexpected {e}: {msg} -> {ans}. Clearing buffer.", file=self.log_warn
-            )
-            self.inst.clear()
-        return
+        if self.dev_state() == DevState.ON:
+            msg = ':READ? "defbuffer1", READ, SOURCE, SOURSTATUS'
+            ans = self.inst.query(msg)
+            print(f"always_executed_hook -> {ans}", file=self.log_debug)
+            try:
+                voltage, current, status = ans.split(",")
+                self._voltage = float(voltage)
+                self._current = float(current)
+                s = int(status)
+                self._status = [s >> i & 1 for i in range(8)]
+            except Exception as e:
+                # likely a timeout occurred - flush buffer
+                print(
+                    f"unexpected {e}: {msg} -> {ans}. Clearing buffer.",
+                    file=self.log_warn,
+                )
+                self.inst.clear()
 
     def read_current(self):
         return self._current
@@ -119,14 +121,15 @@ class Keithley2460(Device):
         return self._history
 
     def write_current(self, value):
-        if float(value) == 0:
-            value = 1e-7
-        self.inst.write(f"SOUR:CURR {value:.8f}")
-        self._history.append(value)
+        if self.dev_state() == DevState.ON:
+            value = 1e-7 if value == 0 else value
+            self.inst.write(f"SOUR:CURR {value:.8f}")
+            self._history.append(value)
 
     def write_output(self, value):
-        val = "ON" if value else "OFF"
-        self.inst.write(f"OUTP {val}")
+        if self.dev_state() == DevState.ON:
+            val = "ON" if value else "OFF"
+            self.inst.write(f"OUTP {val}")
 
     @command
     def clear_history(self):
